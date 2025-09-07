@@ -213,14 +213,16 @@ namespace DuckCreekExtension
 
                     System.Diagnostics.Debug.WriteLine($"=== DuckCreek: Checking line {lineNumber}: '{lineText}' ===");
 
-                    if (!string.IsNullOrEmpty(lineText) &&
-                        lineText.IndexOf("Hi Duck Creek", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                        !lineText.Contains("Hello From Duck Creek"))
+                    // Check for trigger and get response entity
+                    string responseEntity = GetTriggerResponse(lineText);
+
+                    if (!string.IsNullOrEmpty(responseEntity))
                     {
-                        System.Diagnostics.Debug.WriteLine("=== DuckCreek: TRIGGER FOUND! Showing ghost text ===");
+                        System.Diagnostics.Debug.WriteLine($"=== DuckCreek: TRIGGER FOUND! Response entity: '{responseEntity}' ===");
 
                         string fileName = "Unknown File";
                         string fileExtension = "";
+                        string fileContent = "";
 
                         if (textBuffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument textDocument))
                         {
@@ -228,8 +230,30 @@ namespace DuckCreekExtension
                             fileExtension = Path.GetExtension(textDocument.FilePath)?.ToLower() ?? "";
                         }
 
+                        // Read file content
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(textDocument.FilePath) && File.Exists(textDocument.FilePath))
+                            {
+                                fileContent = File.ReadAllText(textDocument.FilePath);
+                                System.Diagnostics.Debug.WriteLine($"=== DuckCreek file content: {fileContent} ===");
+                            }
+                            else
+                            {
+                                var snapshot1 = textBuffer.CurrentSnapshot;
+                                fileContent = snapshot1.GetText();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"=== DuckCreek ERROR reading file content: {ex.Message} ===");
+                            fileContent = "";
+                        }
+
                         string commentPrefix = GetCommentPrefix(fileExtension);
-                        string ghostMessage = $"{commentPrefix} Hello From Duck Creek! You are in the file {fileName}";
+                        string ghostMessage = $"{commentPrefix} Hello From {responseEntity}! You are in the file {fileName}";
+
+                        System.Diagnostics.Debug.WriteLine($"=== DuckCreek: Generated message: {ghostMessage} ===");
 
                         ghostManager.ShowGhostText(line, ghostMessage);
                         return;
@@ -243,6 +267,35 @@ namespace DuckCreekExtension
                 System.Diagnostics.Debug.WriteLine($"=== DuckCreek ERROR in CheckForTriggerPhrase: {ex.Message} ===");
             }
         }
+
+        // Helper method to check triggers and return response entity
+        private string GetTriggerResponse(string lineText)
+        {
+            if (string.IsNullOrEmpty(lineText)) return "";
+
+            // Define trigger-response pairs
+            var triggers = new Dictionary<string, string>
+    {
+        { "Hi Duck Creek", "Duck Creek" },
+        { "Hi Server", "Server" },
+        { "Hi API", "API" },
+        { "Hi Database", "Database" },
+        { "Hi Bot", "Bot" }
+        // Add more triggers as needed
+    };
+
+            foreach (var trigger in triggers)
+            {
+                if (lineText.IndexOf(trigger.Key, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    !lineText.Contains($"Hello From {trigger.Value}"))
+                {
+                    return trigger.Value;
+                }
+            }
+
+            return ""; // No trigger found
+        }
+
 
         private string GetCommentPrefix(string fileExtension)
         {
